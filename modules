@@ -1,0 +1,201 @@
+#!/bin/bash
+###########################################
+# import                                  #
+# Author: Tay Kratzer - tay@cimitra.com   #
+# Version: 1.0                            #
+# Modify date: 6/2/2020                  #
+###########################################
+# Cimitra Modules Control Tool
+ 
+# Global Variables
+declare -i SHOW_HELP=0
+CIMITRA_API_DIRECTORY="/var/opt/cimitra/api"
+
+# Allow the ability to override global variables above
+source ${CIMITRA_API_DIRECTORY}/settings_api.cfg 2> /dev/null
+
+
+
+while getopts "hs:" opt; do
+  case ${opt} in
+    h) SHOW_HELP="1"
+      ;;
+  esac
+done
+
+SCRIPT_COMMAND_LINE_IN=`echo $@`
+
+function SHOW_TIME() {
+    num=$1
+	message=$2
+    min=0
+    hour=0
+    day=0
+    if((num>59));then
+        ((sec=num%60))
+        ((num=num/60))
+        if((num>59));then
+            ((min=num%60))
+            ((num=num/60))
+            if((num>23));then
+                ((hour=num%24))
+                ((day=num/24))
+            else
+                ((hour=num))
+            fi
+        else
+            ((min=num))
+        fi
+    else
+        ((sec=num))
+    fi
+	
+	declare -i IN_DEMO_MODE=`echo "${CIMITRA_SERVER_ADDRESS}" | grep -c "192.168.1.21"`
+	
+    echo "Total ${message} Time: "$hour"h "$min"m "$sec"s"
+
+}
+
+function CALL_ERROR_EXIT()
+{
+ERROR_MESSAGE="$1"
+ERROR_MESSAGE="  ${ERROR_MESSAGE}  "
+echo ""
+if [ -t 0 ]
+then
+echo "$(tput setaf 1)ERROR:$(tput setab 7)${ERROR_MESSAGE}$(tput sgr 0)"
+else
+echo "ERROR:${ERROR_MESSAGE}"
+fi
+echo ""
+exit 1
+}
+
+function CALL_EXIT()
+{
+EXIT_CODE="$1"
+exit ${EXIT_CODE}
+}
+
+function CALL_INFO()
+{
+INFO_MESSAGE="$1"
+INFO_MESSAGE="  ${INFO_MESSAGE}  "
+echo ""
+if [ -t 0 ]
+then
+echo "$(tput setaf 2)$(tput setab 4)INFO:$(tput setaf 4)$(tput setab 7)${INFO_MESSAGE}$(tput sgr 0)"
+else
+echo "INFO:${INFO_MESSAGE}"
+fi
+echo ""
+}
+
+function CALL_COMMAND()
+{
+INFO_MESSAGE="$1"
+INFO_MESSAGE="  ${INFO_MESSAGE}  "
+echo ""
+if [ -t 0 ]
+then
+echo "$(tput setaf 2)$(tput setab 4)COMMAND:$(tput setaf 4)$(tput setab 7)${INFO_MESSAGE}$(tput sgr 0)"
+else
+echo "COMMAND:${INFO_MESSAGE}"
+fi
+echo ""
+}
+
+function SHOW_HELP()
+{
+echo ""
+echo $"Usage: cimitra modules update|help}"
+echo ""
+}
+
+if [ $SHOW_HELP -eq 1 ]
+then
+SHOW_HELP ${EXIT_CODE}
+exit 0
+fi
+
+function UPDATE_MODULES()
+{
+
+test -d  ${CIMITRA_API_DIRECTORY} 2> /dev/null
+
+declare -i CIMITRA_API_DIRECTORY_EXISTS=`echo $?` 
+
+if [ $CIMITRA_API_DIRECTORY_EXISTS -ne 0 ]
+then
+CALL_ERROR_EXIT "The Cimitra API directory ${CIMITRA_API_DIRECTORY} does not exist"
+fi
+
+
+cd ${CIMITRA_API_DIRECTORY} 2> /dev/null
+
+CURRENT_DIR=`pwd` 
+
+if [ $CURRENT_DIR == ${CIMITRA_API_DIRECTORY} ]
+then
+:
+else
+CALL_ERROR_EXIT "Cannot Access Directory: ${CIMITRA_API_DIRECTORY}"
+fi
+
+
+declare -i NUMBER_OF_MODULES="$(find ./* -maxdepth 1 -type d  | wc -l)"
+
+if [ $NUMBER_OF_MODULES -gt 0 ]
+then
+CALL_INFO "Updating Cimitra API Modules"
+fi
+
+declare -i COUNTER=1
+while [ $COUNTER -le $NUMBER_OF_MODULES ]
+do
+
+THE_MODULE_PATH="$(find /var/opt/cimitra/api/* -maxdepth 1 -type d  | head -$COUNTER | tail -1)"
+
+THE_MODULE="$(basename $THE_MODULE_PATH | head -$COUNTER | tail -1)"
+
+CALL_COMMAND "cimitra get $THE_MODULE"
+
+cimitra get $THE_MODULE
+
+let COUNTER=COUNTER+1
+done
+
+}
+
+
+function UPDATE()
+{
+declare -i UPGRADE_START_TIME=`date +%s`
+
+CALL_INFO "[ Cimitra API Modules Update - Start ]"
+
+UPDATE_MODULES
+
+declare -i UPGRADE_STOP_TIME=`date +%s`
+
+declare -i TOTAL_UPGRADE_RUN_TIME=0
+
+let TOTAL_UPGRADE_RUN_TIME=${UPGRADE_STOP_TIME}-${UPGRADE_START_TIME}
+
+SHOW_TIME "${TOTAL_SCRIPT_RUN_TIME}" "API Modules Update"
+
+CALL_INFO "[ Cimitra API Modules Update - Finish ]"
+}
+
+
+case "$1" in
+	update)
+	UPDATE
+	;;
+    help)
+	SHOW_HELP
+	;;
+    *)
+	SHOW_HELP
+	;;
+esac
